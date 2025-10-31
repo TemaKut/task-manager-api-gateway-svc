@@ -16,7 +16,14 @@ func main() {
 			ctx, cancel := signal.NotifyContext(c.Context, syscall.SIGINT, syscall.SIGTERM)
 			defer cancel()
 
-			_ = factory.InitApp()
+			_, cleanup, err := factory.InitApp()
+			if cleanup != nil {
+				defer cleanup()
+			}
+
+			if err != nil {
+				return fmt.Errorf("error init app: %w", err)
+			}
 
 			<-ctx.Done()
 

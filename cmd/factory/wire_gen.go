@@ -6,10 +6,27 @@
 
 package factory
 
+import (
+	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/config"
+	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/handler/ws"
+)
+
 // Injectors from wire.go:
 
-func InitApp() *App {
-	websocketProvider := ProvideWebsocketProvider()
-	app := ProvideApp(websocketProvider)
-	return app
+func InitApp() (*App, func(), error) {
+	configConfig := config.NewConfig()
+	logger, err := ProvideLogger(configConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	handler := ws.NewHandler()
+	httpServerProvider, cleanup, err := ProvideHttpServerProvider(configConfig, logger, handler)
+	if err != nil {
+		return nil, nil, err
+	}
+	httpProvider := ProvideHttpProvider(httpServerProvider)
+	app := ProvideApp(httpProvider)
+	return app, func() {
+		cleanup()
+	}, nil
 }

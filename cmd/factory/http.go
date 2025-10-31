@@ -3,28 +3,44 @@ package factory
 import (
 	"context"
 	"fmt"
+	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/config"
+	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/handler/ws"
+	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/logger"
 	"github.com/google/wire"
 	"github.com/labstack/echo/v4"
 	"golang.org/x/net/websocket"
-	"log"
 	"time"
 )
 
-var WebsocketSet = wire.NewSet()
+var HttpSet = wire.NewSet(
+	ProvideHttpServerProvider,
+	ProvideHttpProvider,
+	ws.NewHandler,
+)
 
-type WebsocketProvider struct{}
+type HttpProvider struct{}
 
-func ProvideWebsocketProvider() *WebsocketProvider {
-	return &WebsocketProvider{}
+func ProvideHttpProvider(_ *HttpServerProvider) *HttpProvider {
+	return &HttpProvider{}
 }
 
 type HttpServerProvider struct{}
 
-func ProvideHttpServerProvider() (*HttpServerProvider, func(), error) {
+func ProvideHttpServerProvider(
+	cfg *config.Config,
+	log *logger.Logger,
+	handler *ws.Handler,
+) (*HttpServerProvider, func(), error) {
 	server := echo.New()
 
-	server.GET("/ws", func(c echo.Context) error {
-		websocket2.Handler(handler.Handle).ServeHTTP(c.Response(), c.Request())
+	server.GET(cfg.HttpServer.Websocket.Path, func(c echo.Context) error {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Errorf("panic handle wabsocket. %+v", err)
+			}
+		}()
+
+		websocket.Handler(handler.Handle).ServeHTTP(c.Response(), c.Request())
 
 		return nil
 	})
@@ -32,7 +48,9 @@ func ProvideHttpServerProvider() (*HttpServerProvider, func(), error) {
 	errCh := make(chan error, 1)
 
 	go func() {
-		if err := server.Start(cfg.Server.Http.Addr); err != nil {
+		log.Infof("http server starts listening on %s", cfg.HttpServer.Address)
+
+		if err := server.Start(cfg.HttpServer.Address); err != nil {
 			errCh <- fmt.Errorf("error starting http server. %w", err)
 		}
 	}()
@@ -47,11 +65,13 @@ func ProvideHttpServerProvider() (*HttpServerProvider, func(), error) {
 	}
 
 	return &HttpServerProvider{}, func() {
+		log.Infof("http server shutdown")
+
 		timeoutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		if err := server.Shutdown(timeoutCtx); err != nil {
-			log.Printf("error shutting down http server. %s", err) // TODO
+			log.Errorf("error shutting down http server. %s", err)
 		}
 	}, nil
 }

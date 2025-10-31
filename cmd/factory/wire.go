@@ -5,11 +5,11 @@ package factory
 
 import "github.com/google/wire"
 
-func InitApp() *App {
+func InitApp() (*App, func(), error) {
 	panic(
 		wire.Build(
 			AppSet,
-			ProvideWebsocketProvider,
+			HttpSet,
 		),
 	)
 }
