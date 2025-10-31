@@ -10,5 +10,5 @@ func NewHandler() *Handler {
 }
 
 func (h *Handler) Handle(ws *websocket.Conn) {
-
+	// TODO observability of open sessions...
 }
