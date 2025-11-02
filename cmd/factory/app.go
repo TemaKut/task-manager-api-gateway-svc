@@ -3,14 +3,17 @@ package factory
 import (
 	"fmt"
 	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/config"
+	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/handler/ws"
 	"github.com/TemaKut/task-manager-api-gateway-svc/internal/app/logger"
 	"github.com/google/wire"
 )
 
 var AppSet = wire.NewSet(
 	ProvideApp,
-	ProvideLogger,
 	config.NewConfig,
+
+	ProvideLogger,
+	wire.Bind(new(ws.Logger), new(*logger.Logger)),
 )
 
 type App struct{}

@@ -3,10 +3,14 @@ module github.com/TemaKut/task-manager-api-gateway-svc
 go 1.24.5
 
 require (
+	github.com/TemaKut/task-manager-client-proto v0.0.0-20251102165639-a1b61c746075
+	github.com/google/uuid v1.6.0
 	github.com/google/wire v0.7.0
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/urfave/cli/v2 v2.27.7
 	golang.org/x/net v0.46.0
+	golang.org/x/sync v0.17.0
+	google.golang.org/protobuf v1.36.10
 )
 
 require (

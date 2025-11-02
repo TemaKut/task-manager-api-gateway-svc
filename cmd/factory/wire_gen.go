@@ -19,7 +19,7 @@ func InitApp() (*App, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	handler := ws.NewHandler()
+	handler := ws.NewHandler(logger)
 	httpServerProvider, cleanup, err := ProvideHttpServerProvider(configConfig, logger, handler)
 	if err != nil {
 		return nil, nil, err
