@@ -39,12 +39,20 @@ func (s *Session) HandleRequests(ctx context.Context) error {
 			return fmt.Errorf("error unmarshalling request. %w", err)
 		}
 
-		_, err := s.handleRequest(ctx, &req)
+		resp, err := s.handleRequest(ctx, &req)
 		if err != nil {
-			return fmt.Errorf("error handling request. %w", err)
+			s.logger.Errorf("error handle request id <%s>. %s", req.GetId(), err)
+			continue
 		}
-		// TODO send response
 
+		respBytes, err := proto.Marshal(resp)
+		if err != nil {
+			return fmt.Errorf("error marshalling response. %w", err)
+		}
+
+		if err := websocket.Message.Send(s.conn, respBytes); err != nil {
+			return fmt.Errorf("error sending response. %w", err)
+		}
 	}
 }
 
@@ -55,35 +63,16 @@ func (s *Session) HandleUpdates(ctx context.Context) error {
 }
 
 func (s *Session) handleRequest(ctx context.Context, req *taskmanager.Request) (*taskmanager.Response, error) {
-	if err := uuid.Validate(req.GetId()); err != nil {
-		return nil, fmt.Errorf("error validating request id <%s>. %w", req.GetId(), err)
-	}
-
 	switch {
 	case req.GetUserRegister() != nil:
-		return someMiddleware(ctx, func(ctx context.Context) (*taskmanager.Response, error) {
-			resp, err := s.handleUserRegisterRequest(ctx, req.GetUserRegister())
-			if err != nil {
-				return nil, fmt.Errorf("error handle user register request. %w", err)
-			}
 
-			return &taskmanager.Response{Data: &taskmanager.Response_UserRegister{UserRegister: resp}}, nil
-		})
 	default:
 		return nil, fmt.Errorf("unknown request type")
 	}
 }
 
-type handlerFn func(ctx context.Context) (*taskmanager.Response, error)
+func (s *Session) handleUserRegisterRequest(ctx context.Context, req *taskmanager.Request) (*taskmanager.Response, error) {
+	//request := req.GetUserRegister()
 
-func someMiddleware(ctx context.Context, handler handlerFn, middlewares ...func(next handlerFn) handlerFn) (*taskmanager.Response, error) {
-	for i := len(middlewares) - 1; i >= 0; i-- {
-		handler = middlewares[i](handler)
-	}
-
-	return handler(ctx)
-}
-
-func (s *Session) handleUserRegisterRequest(ctx context.Context, req *taskmanager.UserRegisterRequest) (*taskmanager.UserRegisterResponse, error) {
-	return nil, nil
+	return newResponse(req.GetId()), nil
 }
