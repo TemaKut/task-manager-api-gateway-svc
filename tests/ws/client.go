@@ -13,9 +13,15 @@ type Client struct {
 	conn *websocket.Conn
 
 	responses map[string]func(*taskmanager.Response)
+	done      chan struct{}
 }
 
 func NewClient(ctx context.Context, addr string) (*Client, error) {
+	client := Client{
+		done:      make(chan struct{}),
+		responses: make(map[string]func(*taskmanager.Response)),
+	}
+
 	cfg, err := websocket.NewConfig(addr, "http://localhost")
 	if err != nil {
 		return nil, fmt.Errorf("error make config. %w", err)
@@ -26,11 +32,37 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 		return nil, fmt.Errorf("error dial context. %w", err)
 	}
 
+	client.conn = conn
+
 	if err := conn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
 		return nil, fmt.Errorf("error setting read deadline. %w", err)
 	}
 
-	return &Client{conn: conn}, nil
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+			case <-client.done:
+			default:
+			}
+
+			var respBytes []byte
+
+			if err := websocket.Message.Receive(conn, &respBytes); err != nil {
+				return
+			}
+
+			var resp taskmanager.Response
+
+			if err := proto.Unmarshal(respBytes, &resp); err != nil {
+				return
+			}
+
+			client.responses[resp.GetId()](&resp)
+		}
+	}()
+
+	return &client, nil
 }
 
 // TODO учесть что может респонс может прилететь не для текущего запроса + апдейты.
@@ -48,26 +80,10 @@ func (c *Client) SendRequest(ctx context.Context, req *taskmanager.Request) (*ta
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	var respBytes []byte
-
-	if err := websocket.Message.Receive(c.conn, &respBytes); err != nil {
-		return nil, fmt.Errorf("error fetching response. %w", err)
-	}
-
-	var resp taskmanager.Response
-
-	if err := proto.Unmarshal(respBytes, &resp); err != nil {
-		return nil, fmt.Errorf("error unmarshalling response. %w", err)
-	}
-
-	return &resp, nil
-}
-
-func (c *Client) fetchResponse(ctx context.Context, id string) (*taskmanager.Response, error) {
 	responseCh := make(chan *taskmanager.Response, 1)
 	defer close(responseCh)
 
-	c.responses[id] = func(resp *taskmanager.Response) {
+	c.responses[req.GetId()] = func(resp *taskmanager.Response) {
 		select {
 		case <-ctx.Done():
 		case responseCh <- resp:
@@ -75,17 +91,21 @@ func (c *Client) fetchResponse(ctx context.Context, id string) (*taskmanager.Res
 		}
 	}
 
-	defer delete(c.responses, id)
+	defer delete(c.responses, req.GetId())
 
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-c.done:
+		return nil, nil
 	case resp := <-responseCh:
 		return resp, nil
 	}
 }
 
 func (c *Client) Close() error {
+	close(c.done)
+
 	if err := c.conn.Close(); err != nil {
 		return fmt.Errorf("error close connection. %w", err)
 	}

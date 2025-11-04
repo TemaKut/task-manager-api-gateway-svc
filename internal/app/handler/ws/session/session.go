@@ -65,7 +65,7 @@ func (s *Session) HandleUpdates(ctx context.Context) error {
 func (s *Session) handleRequest(ctx context.Context, req *taskmanager.Request) (*taskmanager.Response, error) {
 	switch {
 	case req.GetUserRegister() != nil:
-
+		return s.handleUserRegisterRequest(ctx, req)
 	default:
 		return nil, fmt.Errorf("unknown request type")
 	}

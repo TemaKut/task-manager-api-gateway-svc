@@ -22,7 +22,14 @@ func TestUserRegister(t *testing.T) {
 
 	defer client.Close()
 
-	resp, err := client.SendRequest(&taskmanager.Request{Id: uuid.New().String()})
+	req := &taskmanager.Request{
+		Id: uuid.New().String(),
+		Data: &taskmanager.Request_UserRegister{
+			UserRegister: &taskmanager.UserRegisterRequest{Name: "test"},
+		},
+	}
+
+	resp, err := client.SendRequest(ctx, req)
 	if err != nil {
 		t.Fatal(fmt.Errorf("error sending request. %w", err))
 	}
