@@ -15,7 +15,7 @@ func TestUserRegister(t *testing.T) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, os.Kill)
 	defer cancel()
 
-	client, err := ws.NewClient(ctx, ws.ApiGatewayServiceAddr)
+	client, err := ws.NewClient(ctx, ws.ApiGatewayServiceAddr, t)
 	if err != nil {
 		t.Fatal(fmt.Errorf("error creating client: %w", err))
 	}

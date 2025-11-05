@@ -45,7 +45,11 @@ func (s *Session) HandleRequests(ctx context.Context) error {
 			continue
 		}
 
-		respBytes, err := proto.Marshal(resp)
+		respBytes, err := proto.Marshal(&taskmanager.ServerMessage{
+			Data: &taskmanager.ServerMessage_Response{
+				Response: resp,
+			},
+		})
 		if err != nil {
 			return fmt.Errorf("error marshalling response. %w", err)
 		}
@@ -67,7 +71,7 @@ func (s *Session) handleRequest(ctx context.Context, req *taskmanager.Request) (
 	case req.GetUserRegister() != nil:
 		return s.handleUserRegisterRequest(ctx, req)
 	default:
-		return nil, fmt.Errorf("unknown request type")
+		return nil, ErrUnknownRequestType
 	}
 }
 

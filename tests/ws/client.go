@@ -12,14 +12,14 @@ import (
 type Client struct {
 	conn *websocket.Conn
 
-	responses map[string]func(*taskmanager.Response)
-	done      chan struct{}
+	responseCallbacks map[string]func(resp *taskmanager.Response, respErr *taskmanager.ResponseError)
+	done              chan struct{}
 }
 
-func NewClient(ctx context.Context, addr string) (*Client, error) {
+func NewClient(ctx context.Context, addr string, logger Logger) (*Client, error) {
 	client := Client{
-		done:      make(chan struct{}),
-		responses: make(map[string]func(*taskmanager.Response)),
+		done:              make(chan struct{}),
+		responseCallbacks: make(map[string]func(*taskmanager.Response, *taskmanager.ResponseError)),
 	}
 
 	cfg, err := websocket.NewConfig(addr, "http://localhost")
@@ -46,60 +46,68 @@ func NewClient(ctx context.Context, addr string) (*Client, error) {
 			default:
 			}
 
-			var respBytes []byte
+			var serverMessageBytes []byte
 
-			if err := websocket.Message.Receive(conn, &respBytes); err != nil {
+			if err := websocket.Message.Receive(conn, &serverMessageBytes); err != nil {
+				logger.Logf("error receiving message. %s", err)
+
 				return
 			}
 
-			var resp taskmanager.Response
+			var serverMessage taskmanager.ServerMessage
 
-			if err := proto.Unmarshal(respBytes, &resp); err != nil {
+			if err := proto.Unmarshal(serverMessageBytes, &serverMessage); err != nil {
+				logger.Logf("error unmarshal message. %s", err)
+
 				return
 			}
 
-			client.responses[resp.GetId()](&resp)
+			respCallback, ok := client.responseCallbacks[serverMessage.GetResponse().GetRequestId()]
+			if !ok {
+				logger.Logf("error response has no callback. %s", err)
+				
+				return
+			}
+
+			respCallback(serverMessage.GetResponse(), serverMessage.GetResponseError())
 		}
 	}()
 
 	return &client, nil
 }
 
-// TODO учесть что может респонс может прилететь не для текущего запроса + апдейты.
-// TODO учесть кейс когда сервак не отправил ничего (Например сеть мигнула)
-func (c *Client) SendRequest(ctx context.Context, req *taskmanager.Request) (*taskmanager.Response, error) {
+func (c *Client) SendRequest(ctx context.Context, req *taskmanager.Request) (*ResponseContainer, error) {
 	reqBytes, err := proto.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling request. %w", err)
 	}
 
-	if err := websocket.Message.Send(c.conn, reqBytes); err != nil {
-		return nil, fmt.Errorf("error sending request. %w", err)
-	}
-
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	responseCh := make(chan *taskmanager.Response, 1)
+	responseCh := make(chan *ResponseContainer, 1)
 	defer close(responseCh)
 
-	c.responses[req.GetId()] = func(resp *taskmanager.Response) {
+	c.responseCallbacks[req.GetId()] = func(resp *taskmanager.Response, respErr *taskmanager.ResponseError) {
 		select {
 		case <-ctx.Done():
-		case responseCh <- resp:
-		default:
+		case responseCh <- &ResponseContainer{Response: resp, ResponseErr: respErr}:
 		}
 	}
 
-	defer delete(c.responses, req.GetId())
+	defer delete(c.responseCallbacks, req.GetId())
+
+	if err := websocket.Message.Send(c.conn, reqBytes); err != nil {
+		return nil, fmt.Errorf("error sending request. %w", err)
+	}
 
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case <-c.done:
 		return nil, nil
-	case resp := <-responseCh:
-		return resp, nil
+	case respContainer := <-responseCh:
+		return respContainer, nil
 	}
 }
 
@@ -111,4 +119,9 @@ func (c *Client) Close() error {
 	}
 
 	return nil
+}
+
+type ResponseContainer struct {
+	Response    *taskmanager.Response
+	ResponseErr *taskmanager.ResponseError
 }

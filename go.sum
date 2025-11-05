@@ -1,5 +1,5 @@
-github.com/TemaKut/task-manager-client-proto v0.0.0-20251102165639-a1b61c746075 h1:WAgyX6FSlLCauL9mi3Bn/viMRNX1gTRfGSuOvUhuaEY=
-github.com/TemaKut/task-manager-client-proto v0.0.0-20251102165639-a1b61c746075/go.mod h1:c4bAxx1KNsGcn3MCCkOA2eMSfGTwMctX6ySh1itwqGs=
+github.com/TemaKut/task-manager-client-proto v0.0.0-20251105041029-ffec5aff50d3 h1:ap3eAtkzsg40jK+lsBFYe1QkLiPZSmnIE97e31NJp8o=
+github.com/TemaKut/task-manager-client-proto v0.0.0-20251105041029-ffec5aff50d3/go.mod h1:c4bAxx1KNsGcn3MCCkOA2eMSfGTwMctX6ySh1itwqGs=
 github.com/cpuguy83/go-md2man/v2 v2.0.7 h1:zbFlGlXEAKlwXpmvle3d8Oe3YnkKIK4xSRTd3sHPnBo=
 github.com/cpuguy83/go-md2man/v2 v2.0.7/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
