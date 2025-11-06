@@ -10,16 +10,19 @@ import (
 )
 
 type Client struct {
-	conn *websocket.Conn
+	conn   *websocket.Conn
+	logger Logger
 
 	responseCallbacks map[string]func(resp *taskmanager.Response, respErr *taskmanager.ResponseError)
 	done              chan struct{}
+	isClosed          bool
 }
 
 func NewClient(ctx context.Context, addr string, logger Logger) (*Client, error) {
 	client := Client{
 		done:              make(chan struct{}),
 		responseCallbacks: make(map[string]func(*taskmanager.Response, *taskmanager.ResponseError)),
+		logger:            logger,
 	}
 
 	cfg, err := websocket.NewConfig(addr, "http://localhost")
@@ -48,7 +51,12 @@ func NewClient(ctx context.Context, addr string, logger Logger) (*Client, error)
 
 			var serverMessageBytes []byte
 
-			if err := websocket.Message.Receive(conn, &serverMessageBytes); err != nil {
+			err := websocket.Message.Receive(conn, &serverMessageBytes)
+			if client.isClosed {
+				return
+			}
+
+			if err != nil {
 				logger.Logf("error receiving message. %s", err)
 
 				return
@@ -65,7 +73,7 @@ func NewClient(ctx context.Context, addr string, logger Logger) (*Client, error)
 			respCallback, ok := client.responseCallbacks[serverMessage.GetResponse().GetRequestId()]
 			if !ok {
 				logger.Logf("error response has no callback. %s", err)
-				
+
 				return
 			}
 
@@ -111,14 +119,15 @@ func (c *Client) SendRequest(ctx context.Context, req *taskmanager.Request) (*Re
 	}
 }
 
-func (c *Client) Close() error {
+func (c *Client) Close() {
+	c.isClosed = true
 	close(c.done)
 
 	if err := c.conn.Close(); err != nil {
-		return fmt.Errorf("error close connection. %w", err)
-	}
+		c.logger.Logf("error close connection. %s", err)
 
-	return nil
+		return
+	}
 }
 
 type ResponseContainer struct {
